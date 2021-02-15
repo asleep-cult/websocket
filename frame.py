@@ -4,38 +4,27 @@ from typing import Generator
 
 
 class Frame:
-    def __init__(
-        self,
-        *,
-        fin: bool,
-        rsv1: bool,
-        rsv2: bool,
-        rsv3: bool,
-        opcode: int,
-        masked: bool,
-        data: bytearray
-    ) -> None:
-        self.fin = fin
-        self.rsv1 = rsv1
-        self.rsv2 = rsv2
-        self.rsv3 = rsv3
-        self.opcode = opcode
-        self.masked = masked
-        self.data = data
+    def __init__(self, **kwargs) -> None:
+        self.fin: bool = kwargs.pop('fin', False)
+        self.rsv1: bool = kwargs.pop('rsv1', False)
+        self.rsv2: bool = kwargs.pop('rsv2', False)
+        self.rsv3: bool = kwargs.pop('rsv3', False)
+        self.opcode: bool = kwargs.pop('opcode', False)
+        self.masked: bool = kwargs.pop('masked', False)
+        self.data: bytes = kwargs.pop('data')
 
     def __repr__(self):
         return \
-            'Frame(fin={!s}, rsv1={!s}, rsv2={!s}, rsv3={!s}, ' \
-            'opcode={!s}, data={!r})'.format(
+            'Frame(fin={}, rsv1={}, rsv2={}, rsv3={}, ' \
+            'opcode={}, masked={}, data={!r})'.format(
                 self.fin, self.rsv1, self.rsv2,
-                self.rsv3, self.opcode, self.data
+                self.rsv3, self.opcode, self.masked,
+                self.data
             )
 
     @staticmethod
-    def _unpack_bits(
-        byte: int
-    ) -> Generator[bool, None, None]:
-        shift = 8
+    def _unpack_bits(byte: int) -> Generator[bool, None, None]:
+        shift = 7
         while True:
             yield ((byte >> shift) & 1) != 0
             if shift == 0:
@@ -43,32 +32,23 @@ class Frame:
             shift -= 1
 
     @staticmethod
-    def _pack_bits(
-        *bits
-    ) -> int:
+    def _pack_bits(*bits) -> int:
         offset = 0x80
         out = 0
-
         for bit in bits:
             if bit:
                 out |= offset
             offset //= 2
-
         return out
 
     @staticmethod
-    def _mask_buffer(
-        buffer: bytearray,
-        mask: bytes
-    ) -> None:
+    def _mask_buffer(buffer: bytearray, mask: bytes) -> None:
         for i in range(len(buffer)):
             buffer[i] ^= mask[i % 4]
+        return buffer
 
     @classmethod
-    async def create(
-        cls,
-        reader: Reader
-    ) -> 'Frame':
+    async def create(cls, reader: Reader) -> 'Frame':
         fbyte, = await reader.read_all(1)
         fbyte_bits = iter(cls._unpack_bits(fbyte))
 
@@ -83,7 +63,6 @@ class Frame:
 
         masked = next(sbyte_bits)
         length = sbyte & 0x7F
-        print(length)
 
         if length == 0x7E:
             legnth_bytes = await reader.read_all(2)

@@ -7,7 +7,7 @@ class Reader:
         self,
         loop: asyncio.AbstractEventLoop,
         socket: socket.socket
-    ):
+    ) -> None:
         self.loop = loop
         self.socket = socket
         self.socket.setblocking(False)

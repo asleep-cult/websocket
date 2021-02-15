@@ -9,14 +9,13 @@ rsock, ssock = socket.socketpair()
 rsock = reader.Reader(loop, rsock)
 
 
-data = frame.Frame(
-    fin=False, rsv1=False, rsv2=False,
-    rsv3=False, opcode=0x01, masked=False,
-    data=bytearray('Hello World' * 100, 'ascii')
-).encode()
-print(data)
+f = frame.Frame(
+    opcode=0x01, masked=True,
+    data=bytearray('Hello World', 'ascii')
+)
+print(f)
 
-ssock.send(data)
+ssock.send(f.encode())
 
 
 async def main():

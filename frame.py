@@ -75,7 +75,7 @@ class Frame:
         if masked:
             mask = await reader.read_all(4)
 
-        data = await reader.read_all(length)
+        data = bytearray(await reader.read_all(length))
 
         if masked:
             cls._mask_buffer(data, mask)

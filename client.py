@@ -4,7 +4,7 @@ import functools
 import urllib
 import os
 from base64 import b64encode
-from frame import Frame
+from frame import Frame, Opcode
 from reader import Reader
 from writer import Writer
 from typing import Optional, Tuple, Dict, Any
@@ -56,7 +56,7 @@ class Client:
             'Connection': 'upgrade',
             'Upgrade': 'WebSocket',
             'Sec-WebSocket-Key': self.ws_key,
-            'Sec-WebSocket-Version': self.ws_versions,
+            'Sec-WebSocket-Version': ', '.join(self.ws_versions),
             **headers
         }
 
@@ -64,3 +64,31 @@ class Client:
         request = 'GET %s HTTP/1.1\r\n%s\r\n\r\n' % (self.url.path, hdrs)
 
         await self.writer.write(request.encode())
+
+    async def send_frame(self, frame: Frame) -> None:
+        await self.writer.write(frame.encode())
+
+    async def receive_frame(self) -> Frame:
+        frame = await Frame.create(self.reader)
+        return frame
+
+    async def receive_text_encoded(self) -> bytearray:
+        frame = await self.receive_frame()
+        if frame.opcode == Opcode.TEXT:
+            return frame.data
+        else:
+            raise ValueError(
+                'Received Opcode {}, not TEXT'.format(frame.opcode)
+            )
+
+    async def receive_text(self):
+        return (await self.receive_text_encoded()).decode()
+
+    async def receive_binary(self) -> bytearray:
+        frame = await self.receive_frame()
+        if frame.opcode == Opcode.BINARY:
+            return frame.data
+        else:
+            raise ValueError(
+                'Received Opcode {}, not BINARY'.format(frame.opcode)
+            )

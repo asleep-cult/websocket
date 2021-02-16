@@ -1,6 +1,16 @@
 import os
+import enum
 from reader import Reader
 from typing import Generator
+
+
+class Opcode(enum.IntEnum):
+    CONTINUATION = 0x0
+    TEXT = 0x1
+    BINARY = 0x2
+    CLOSE = 0x8
+    PING = 0x9
+    PONG = 0xA
 
 
 class Frame:
@@ -9,7 +19,7 @@ class Frame:
         self.rsv1: bool = kwargs.pop('rsv1', False)
         self.rsv2: bool = kwargs.pop('rsv2', False)
         self.rsv3: bool = kwargs.pop('rsv3', False)
-        self.opcode: bool = kwargs.pop('opcode', False)
+        self.opcode: bool = kwargs.pop('opcode', Opcode.TEXT)
         self.masked: bool = kwargs.pop('masked', False)
         self.data: bytes = kwargs.pop('data')
 

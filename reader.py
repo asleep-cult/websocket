@@ -59,4 +59,4 @@ class Reader:
             except ValueError:
                 await self._read_into_buf()
 
-            return self._read_into_buf(index)
+            return self._read_from_buf(index)

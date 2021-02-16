@@ -1,5 +1,6 @@
 import asyncio
 import socket
+import ssl
 
 
 class Reader:
@@ -16,7 +17,12 @@ class Reader:
 
     async def _wait_read(self) -> None:
         future = self.loop.create_future()
-        self.loop.add_reader(self.socket, future.set_result, None)
+
+        def set_result():
+            if not future.done():
+                future.set_result(None)
+
+        self.loop.add_reader(self.socket, set_result)
         await future
 
     def _read_from_buf(self, bufsize) -> memoryview:
@@ -33,8 +39,10 @@ class Reader:
     async def _read_into_buf(self):
         while True:
             try:
-                return self.buffer.extend(self.socket.recv(1024))
-            except BlockingIOError:
+                self.buffer.extend(self.socket.recv(1024))
+                print(self.buffer)
+                return
+            except (BlockingIOError, ssl.SSLWantReadError):
                 await self._wait_read()
 
     async def read(self, bufsize) -> memoryview:
@@ -58,5 +66,6 @@ class Reader:
                 index = self.buffer.index(sub, self.buffer_index)
             except ValueError:
                 await self._read_into_buf()
+                continue
 
-            return self._read_from_buf(index)
+            return self._read_from_buf(index + len(sub))

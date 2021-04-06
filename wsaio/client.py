@@ -31,7 +31,7 @@ class WebSocketClient(DrainableProtocol, HttpProtocol, WebSocketProtocol):
 
     def http_response_received(self, response: HttpResponse) -> None:
         if response.status != HTTPStatus.SWITCHING_PROTOCOLS:
-            self._have_headers.set_exception(
+            return self._have_headers.set_exception(
                 UnexpectedHttpResponse(
                     f'Expected status code {HTTPStatus.SWITCHING_PROTOCOLS}, '
                     f'got {response.status}',
@@ -41,7 +41,7 @@ class WebSocketClient(DrainableProtocol, HttpProtocol, WebSocketProtocol):
 
         connection = response.headers.getone(b'connection')
         if connection is None or connection.lower() != b'upgrade':
-            self._have_headers.set_exception(
+            return self._have_headers.set_exception(
                 UnexpectedHttpResponse(
                     f'Expected "connection: upgrade" header, got {connection}',
                     response
@@ -50,7 +50,7 @@ class WebSocketClient(DrainableProtocol, HttpProtocol, WebSocketProtocol):
 
         upgrade = response.headers.getone(b'upgrade')
         if upgrade is None or upgrade.lower() != b'websocket':
-            self._have_headers.set_exception(
+            return self._have_headers.set_exception(
                 UnexpectedHttpResponse(
                     f'Expected "upgrade: websocket" header, got {upgrade}',
                     response

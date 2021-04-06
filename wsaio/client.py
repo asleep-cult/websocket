@@ -75,7 +75,7 @@ class WebSocketClient(DrainableProtocol, HttpProtocol, WebSocketProtocol):
         )
 
         headers.update({
-            'Host': '{}:{}'.format(url.hostname, port),
+            'Host': f'{url.hostname}:{port}',
             'Connection': 'Upgrade',
             'Upgrade': 'websocket',
             'Sec-WebSocket-Key': self.sec_ws_key.decode(),

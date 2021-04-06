@@ -5,6 +5,8 @@ import os
 import struct
 from typing import ByteString
 
+from .utils import ensure_length
+
 
 class WebSocketProtocol:
     def ws_frame_received(self, frame: WebSocketFrame) -> None:
@@ -91,13 +93,16 @@ class WebSocketFrame:
         position = 0
 
         while True:
+            data = data[position:]
+            position = 0
+
+            data = yield from ensure_length(data, position + 1)
             fbyte = data[position]
             position += 1
-            data, position = yield from cls._maybe_yield(data, position)
 
+            data = yield from ensure_length(data, position + 1)
             sbyte = data[position]
             position += 1
-            data, position = yield from cls._maybe_yield(data, position)
 
             masked = (sbyte >> 7) & 1
             length = sbyte & ~(1 << 7)
@@ -108,30 +113,18 @@ class WebSocketFrame:
                 elif length == 127:
                     strct = cls.LONGLONG_LENGTH
 
-                while True:
-                    if len(data) - position >= strct.size:
-                        length = strct.unpack_from(data, position)
-                        position += strct.size
-                        break
-
-                    data += yield
+                data = yield from ensure_length(data, position + strct.size)
+                length, = strct.unpack_from(data, position)
+                position += strct.size
 
             if masked:
-                while True:
-                    if len(data) - position >= 4:
-                        mask = data[position:position+4]
-                        position += 4
-                        break
+                data = yield from ensure_length(data, position + 4)
+                mask = data[position:position + 4]
+                position += 4
 
-                    data += yield
-
-            while True:
-                if len(data) - position >= length:
-                    payload = data[position:position+length]
-                    position += length
-                    break
-
-                data += yield
+            data = yield from ensure_length(data, position + length)
+            payload = data[position:position + length]
+            position += length
 
             if masked:
                 payload = cls.mask(data, mask)
@@ -143,5 +136,3 @@ class WebSocketFrame:
                 data=payload
             )
             protocol.ws_frame_received(frame)
-
-            data, position = yield from cls._maybe_yield(data, position)

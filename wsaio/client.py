@@ -6,12 +6,13 @@ from http import HTTPStatus
 
 from .exceptions import UnexpectedHttpResponse
 from .http import HttpProtocol, HttpRequest, HttpResponse
+from .protocol import DrainableProtocol
 from .websocket import WebSocketFrame, WebSocketProtocol
 
 
-class WebSocketClient(asyncio.Protocol, HttpProtocol, WebSocketProtocol):
+class WebSocketClient(DrainableProtocol, HttpProtocol, WebSocketProtocol):
     def __init__(self, loop=None):
-        self.loop = loop or asyncio.get_event_loop()
+        super().__init__(loop)
         self.transport = None
         self._have_headers = self.loop.create_future()
         self._parser = None
@@ -25,10 +26,11 @@ class WebSocketClient(asyncio.Protocol, HttpProtocol, WebSocketProtocol):
         try:
             self._parser.send(data)
         except StopIteration as e:
+            # the parser must have changed, e.value is the unused data
             if e.value:
                 self._parser.send(e.value)
 
-    def http_response_received(self, response: HttpResponse):
+    def http_response_received(self, response: HttpResponse) -> None:
         if response.status != HTTPStatus.SWITCHING_PROTOCOLS:
             self._have_headers.set_exception(
                 UnexpectedHttpResponse(
@@ -38,7 +40,7 @@ class WebSocketClient(asyncio.Protocol, HttpProtocol, WebSocketProtocol):
                 )
             )
 
-        connection = response._get_lower(b'connection', response.headers)
+        connection = response.headers.getone(b'connection')
         if connection is None or connection.lower() != b'upgrade':
             self._have_headers.set_exception(
                 UnexpectedHttpResponse(
@@ -47,7 +49,7 @@ class WebSocketClient(asyncio.Protocol, HttpProtocol, WebSocketProtocol):
                 )
             )
 
-        upgrade = response._get_lower(b'upgrade', response.headers)
+        upgrade = response.headers.getone(b'upgrade')
         if upgrade is None or upgrade.lower() != b'websocket':
             self._have_headers.set_exception(
                 UnexpectedHttpResponse(
@@ -71,6 +73,9 @@ class WebSocketClient(asyncio.Protocol, HttpProtocol, WebSocketProtocol):
         self.transport, _ = await self.loop.create_connection(
             lambda: self, url.hostname, port, *args, ssl=ssl, **kwargs
         )
+        self.writer = asyncio.StreamWriter(
+            self.transport, self, None, self.loop
+        )
 
         headers.update({
             'Host': '{}:{}'.format(url.hostname, port),
@@ -83,6 +88,14 @@ class WebSocketClient(asyncio.Protocol, HttpProtocol, WebSocketProtocol):
         request = HttpRequest(
             method='GET', path=url.path + url.params, headers=headers
         )
-        self.transport.write(request.encode())
+        await self.write(request.encode(), drain=True)
 
         await self._have_headers
+
+    async def write(self, data: bytes, *, drain: bool = False) -> None:
+        self.transport.write(data)
+        if drain:
+            await self.drain()
+
+    async def send_frame(self, frame, *, drain: bool = False) -> None:
+        await self.write(frame.encode(masked=True), drain=drain)

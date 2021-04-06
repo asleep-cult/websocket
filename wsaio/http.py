@@ -3,6 +3,58 @@ from __future__ import annotations
 import http
 import re
 
+from .utils import ensure_length
+
+
+class HeadersMultiValue(list):
+    pass
+
+
+SENTINEL = object()
+
+
+class Headers(dict):
+    def __setitem__(self, key, value):
+        key = key.lower()
+        v = self.get(key, SENTINEL)
+        if v is SENTINEL:
+            return super().__setitem__(key, value)
+        elif type(v) is HeadersMultiValue:
+            return v.append(value)
+        else:
+            nv = HeadersMultiValue()
+            nv.append(v)
+            nv.append(value)
+            return super().__setitem__(key, nv)
+
+    def __getitem__(self, key, value):
+        return super().__getitem__(key.lower(), value)
+
+    def __delitem__(self, key, value):
+        return super().__delitem__(key.lower(), value)
+
+    def get(self, key, default=None):
+        return super().get(key.lower(), default)
+
+    def getone(self, key, default=None):
+        value = self.get(key, default)
+        if type(value) is HeadersMultiValue:
+            value = value[0]
+        return value
+
+    def pop(self, key, *args, **kwargs):
+        return super().pop(key.lower(), *args, **kwargs)
+
+    def popone(self, key, default=SENTINEL):
+        value = self.get(key, default)
+        if value is SENTINEL:
+            raise KeyError(key)
+        elif type(value) is HeadersMultiValue:
+            value = value.pop(0)
+        else:
+            del self[key]
+        return value
+
 
 class HttpProtocol:
     def http_response_received(self, response: HttpResponse) -> None:
@@ -37,14 +89,6 @@ class HttpResponse:
             offset = index
             yield [item.strip() for item in data.split(b':', 1)]
 
-    @staticmethod
-    def _get_lower(key, dct, default=None):
-        key = key.lower()
-        for k in dct:
-            if k.lower() == key:
-                return dct[k]
-        return default
-
     @classmethod
     def parser(cls, protocol: HttpProtocol):
         headers = b''
@@ -63,19 +107,18 @@ class HttpResponse:
         status_line, = next(headers)
         match = cls.STATUS_LINE_REGEX.match(status_line.decode())
 
-        headers = dict(headers)
+        headers_dict = Headers()
+        for key, value in headers:
+            headers_dict[key] = value
 
-        content_length = cls._get_lower(b'content-length', headers, 0)
+        content_length = headers_dict.get(b'content-length', 0)
 
-        while True:
-            if len(body) >= content_length:
-                break
-            body += yield
+        body = yield from ensure_length(body, content_length)
 
         response = cls(
             version=match.group('version'),
             status=int(match.group('status')),
-            headers=headers,
+            headers=headers_dict,
             body=body[:content_length]
         )
         protocol.http_response_received(response)

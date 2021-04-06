@@ -6,7 +6,7 @@ from http import HTTPStatus
 from .exceptions import UnexpectedHttpResponse
 from .http import HttpProtocol, HttpRequest, HttpResponse
 from .protocol import DrainableProtocol
-from .websocket import WebSocketFrame, WebSocketProtocol
+from .websocket import WebSocketFrame, WebSocketOpcode, WebSocketProtocol
 
 
 class WebSocketClient(DrainableProtocol, HttpProtocol, WebSocketProtocol):
@@ -94,5 +94,16 @@ class WebSocketClient(DrainableProtocol, HttpProtocol, WebSocketProtocol):
         if drain:
             await self.drain()
 
-    async def send_frame(self, frame, *, drain: bool = False) -> None:
+    async def send_frame(
+        self, frame: WebSocketFrame, *, drain: bool = False
+    ) -> None:
         await self.write(frame.encode(masked=True), drain=drain)
+
+    async def send_bytes(self, data: bytes, *, drain: bool = False) -> None:
+        await self.send_frame(
+            WebSocketFrame(opcode=WebSocketOpcode.TEXT, data=data),
+            drain=drain
+        )
+
+    async def send_str(self, data: str, *, drain: bool = False) -> None:
+        await self.send_bytes(data.encode(), drain=drain)

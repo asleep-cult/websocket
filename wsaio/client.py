@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import os
 import urllib.parse
@@ -72,9 +71,6 @@ class WebSocketClient(DrainableProtocol, HttpProtocol, WebSocketProtocol):
 
         self.transport, _ = await self.loop.create_connection(
             lambda: self, url.hostname, port, *args, ssl=ssl, **kwargs
-        )
-        self.writer = asyncio.StreamWriter(
-            self.transport, self, None, self.loop
         )
 
         headers.update({

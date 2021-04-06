@@ -80,13 +80,6 @@ class WebSocketFrame:
 
         return buffer
 
-    @staticmethod
-    def _maybe_yield(data, position):
-        if position >= len(data):
-            data = yield
-            return data, 0
-        return data, position
-
     @classmethod
     def parser(cls, protocol: WebSocketProtocol):
         data = yield

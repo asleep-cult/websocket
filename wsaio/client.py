@@ -39,7 +39,7 @@ class WebSocketClient(asyncio.Protocol, HttpProtocol, WebSocketProtocol):
             )
 
         connection = response._get_lower(b'connection', response.headers)
-        if connection is not None and connection.lower() != b'upgrade':
+        if connection is None or connection.lower() != b'upgrade':
             self._have_headers.set_exception(
                 UnexpectedHttpResponse(
                     f'Expected "connection: upgrade" header, got {connection}',
@@ -48,7 +48,7 @@ class WebSocketClient(asyncio.Protocol, HttpProtocol, WebSocketProtocol):
             )
 
         upgrade = response._get_lower(b'upgrade', response.headers)
-        if upgrade is not None and upgrade.lower() != b'websocket':
+        if upgrade is None or upgrade.lower() != b'websocket':
             self._have_headers.set_exception(
                 UnexpectedHttpResponse(
                     f'Expected "upgrade: websocket" header, got {upgrade}',

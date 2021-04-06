@@ -41,7 +41,7 @@ class HttpResponse:
     def _get_lower(key, dct, default=None):
         key = key.lower()
         for k in dct:
-            if k == key:
+            if k.lower() == key:
                 return dct[k]
         return default
 

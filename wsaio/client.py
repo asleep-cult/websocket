@@ -59,6 +59,7 @@ class WebSocketClient(DrainableProtocol, HttpProtocol, WebSocketProtocol):
 
         self.set_parser(WebSocketFrame.parser(self))
         self._have_headers.set_result(None)
+        self.ws_connected()
 
     async def connect(self, url, *args, **kwargs):
         headers = kwargs.pop('headers', {})

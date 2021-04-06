@@ -9,6 +9,9 @@ from .utils import ensure_length
 
 
 class WebSocketProtocol:
+    def ws_connected(self) -> None:
+        pass
+
     def ws_frame_received(self, frame: WebSocketFrame) -> None:
         pass
 

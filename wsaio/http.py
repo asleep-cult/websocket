@@ -81,11 +81,12 @@ class HttpResponse:
     def _iter_headers(headers: bytes):
         offset = 0
         while True:
-            try:
-                index = headers.index(b'\r\n', offset) + 2
-            except ValueError:
-                return
+            index = headers.index(b'\r\n', offset) + 2
             data = headers[offset:index]
+
+            if data == b'\r\n':
+                return
+
             offset = index
             yield [item.strip() for item in data.split(b':', 1)]
 
@@ -96,10 +97,10 @@ class HttpResponse:
 
         while True:
             headers += yield
-            end = headers.find(b'\r\n\r\n')
+            end = headers.find(b'\r\n\r\n') + 4
             if end != -1:
                 headers = headers[:end]
-                body += headers[end + 4:]
+                body += headers[end:]
                 break
 
         headers = cls._iter_headers(headers)

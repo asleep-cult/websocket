@@ -1,7 +1,14 @@
+from __future__ import annotations
+
 import enum
 import os
 import struct
 from typing import ByteString
+
+
+class WebSocketProtocol:
+    def ws_frame_received(self, frame: WebSocketFrame) -> None:
+        pass
 
 
 class WebSocketOpcode(enum.IntEnum):
@@ -17,10 +24,11 @@ class WebSocketFrame:
     SHORT_LENGTH = struct.Struct('!H')
     LONGLONG_LENGTH = struct.Struct('!Q')
 
-    def __init__(self, *, opcode: WebSocketOpcode,
-                 fin: bool = True, rsv1: bool = False,
-                 rsv2: bool = False, rsv3: bool = False,
-                 data: ByteString):
+    def __init__(
+        self, *, opcode: WebSocketOpcode, fin: bool = True,
+        rsv1: bool = False, rsv2: bool = False, rsv3: bool = False,
+        data: ByteString
+    ):
         self.opcode = opcode
         self.fin = fin
         self.rsv1 = rsv1
@@ -42,11 +50,11 @@ class WebSocketFrame:
 
     def encode(self, masked: bool = False) -> bytearray:
         buffer = bytearray(2)
-        buffer[0] = ((self.fin << 7) |
-                     (self.rsv1 << 6) |
-                     (self.rsv2 << 5) |
-                     (self.rsv3 << 4) |
-                     self.opcode)
+        buffer[0] = ((self.fin << 7)
+                     | (self.rsv1 << 6)
+                     | (self.rsv2 << 5)
+                     | (self.rsv3 << 4)
+                     | self.opcode)
         buffer[1] = masked << 7
 
         length = len(self.data)
@@ -78,7 +86,7 @@ class WebSocketFrame:
         return data, position
 
     @classmethod
-    def new_parser(cls):
+    def parser(cls, protocol: WebSocketProtocol):
         data = yield
         position = 0
 
@@ -128,9 +136,12 @@ class WebSocketFrame:
             if masked:
                 payload = cls.mask(data, mask)
 
-            yield cls(opcode=WebSocketOpcode(fbyte & 0xF),
-                      fin=(fbyte >> 7) & 1, rsv1=(fbyte >> 6) & 1,
-                      rsv2=(fbyte >> 5) & 1, rsv3=(fbyte >> 4) & 1,
-                      data=payload)
+            frame = cls(
+                opcode=WebSocketOpcode(fbyte & 0xF),
+                fin=(fbyte >> 7) & 1, rsv1=(fbyte >> 6) & 1,
+                rsv2=(fbyte >> 5) & 1, rsv3=(fbyte >> 4) & 1,
+                data=payload
+            )
+            protocol.ws_frame_received(frame)
 
             data, position = yield from cls._maybe_yield(data, position)

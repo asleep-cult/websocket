@@ -212,10 +212,8 @@ class WebSocketFrame:
                     )
                 elif frame.opcode is WebSocketOpcode.PING:
                     protocol.ws_ping_received(frame.data)
-
                 elif frame.opcode is WebSocketOpcode.PONG:
                     protocol.ws_pong_received(frame.data)
-
                 elif frame.opcode is WebSocketOpcode.CLOSE:
                     close_clode = int.from_bytes(frame.data[:2], 'big')
                     data = frame.data[2:]
@@ -233,7 +231,7 @@ class WebSocketFrame:
                         fragments.append(frame)
                         if frame.fin:
                             frame = fragments[0]
-                            frame.data += b''.join(f.data for f in fragments)
+                            frame.data = b''.join(f.data for f in fragments)
                             fragments = []
                 elif not frame.fin:
                     fragments.append(frame)

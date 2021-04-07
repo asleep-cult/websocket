@@ -46,6 +46,9 @@ class WebSocketState(enum.IntEnum):
 
 
 class WebSocketProtocol:
+    def __init__(self):
+        self.extensions = []
+
     def ws_connected(self) -> None:
         pass
 
@@ -56,6 +59,15 @@ class WebSocketProtocol:
         pass
 
     def ws_text_received(self, data: str) -> None:
+        pass
+
+    def ws_ping_received(self, data: bytes) -> None:
+        pass
+
+    def ws_pong_received(self, data: bytes) -> None:
+        pass
+
+    def ws_close_received(self, code: WebSocketCloseCode, data: bytes) -> None:
         pass
 
 
@@ -166,36 +178,73 @@ class WebSocketFrame:
                 rsv2=(fbyte >> 5) & 1, rsv3=(fbyte >> 4) & 1,
                 data=payload
             )
-
-            # TODO: Check rsv1-3
-
             protocol.ws_frame_received(frame)
+
+            extra = {
+                'frame': frame,
+                'protocol': protocol
+            }
+
+            if not protocol.extensions:
+                if any((frame.rsv1, frame.rsv2, frame.rsv3)):
+                    extra['close_code'] = WebSocketCloseCode.PROTOCOL_ERROR
+                    raise ParserInvalidDataError(
+                        'Received rsv1, rsv2 or rsv3 but no extensions '
+                        'were negotiated',
+                        extra
+                    )
 
             control = (frame.opcode >> 7) & 1
 
             if control:
-                # TODO: Call proto methods
-                pass
+                if len(frame.data) > 125:
+                    extra['close_code'] = WebSocketCloseCode.PROTOCOL_ERROR
+                    raise ParserInvalidDataError(
+                        'Received control frame with payload length > 125 '
+                        f'({len(frame.data)})',
+                        extra
+                    )
+                elif not frame.fin:
+                    extra['close_code'] = WebSocketCloseCode.PROTOCOL_ERROR
+                    raise ParserInvalidDataError(
+                        'Received fragmented control frame',
+                        extra
+                    )
+                elif frame.opcode is WebSocketOpcode.PING:
+                    protocol.ws_ping_received(frame.data)
+
+                elif frame.opcode is WebSocketOpcode.PONG:
+                    protocol.ws_pong_received(frame.data)
+
+                elif frame.opcode is WebSocketOpcode.CLOSE:
+                    close_clode = int.from_bytes(frame.data[:2], 'big')
+                    data = frame.data[2:]
+                    protocol.ws_close_received(close_clode, data)
             else:
                 if fragments:
-                    if frame.opcode != WebSocketOpcode.CONTINUATION:
-                        extra = {
-                            'close_code': WebSocketCloseCode.PROTOCOL_ERROR,
-                            'frame': frame,
-                            'protocol': protocol
-                        }
+                    if frame.opcode is not WebSocketOpcode.CONTINUATION:
+                        extra['close_code'] = WebSocketCloseCode.PROTOCOL_ERROR
                         raise ParserInvalidDataError(
                             f'Expected opcode {WebSocketOpcode.CONTINUATION} '
-                            f'(continuation), got {frame.opcode}',
+                            f'(got {frame.opcode})',
                             extra
                         )
                     else:
                         fragments.append(frame)
                         if frame.fin:
-                            # TODO: Concatenate and call ptoto methods
-                            pass
+                            frame = fragments[0]
+                            frame.data += b''.join(f.data for f in fragments)
+                            fragments = []
                 elif not frame.fin:
                     fragments.append(frame)
-                else:
-                    # TODO: Call proto methods
-                    pass
+                    continue
+
+                if frame.opcode is WebSocketOpcode.TEXT:
+                    try:
+                        data = frame.data.decode()
+                    except UnicodeDecodeError as e:
+                        extra['close_code'] = WebSocketCloseCode.INVALID_PAYLOAD_DATA
+                        raise ParserInvalidDataError(str(e), extra)
+                    protocol.ws_text_received(data)
+                elif frame.opcode is WebSocketOpcode.BINARY:
+                    protocol.ws_binary_received(frame.data)

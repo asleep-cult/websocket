@@ -2,7 +2,7 @@ import asyncio
 import functools
 
 
-class DrainableProtocol(asyncio.Protocol):
+class BaseProtocol(asyncio.Protocol):
     # Stolen from asyncio.streams.FlowControlMixin
     def __init__(self, loop=None):
         if loop is None:
@@ -12,6 +12,21 @@ class DrainableProtocol(asyncio.Protocol):
         self._paused = False
         self._drain_waiter = None
         self._connection_lost = False
+        self._parser = None
+
+    def set_parser(self, parser):
+        parser.send(None)
+        self._parser = parser
+
+    def data_received(self, data):
+        try:
+            self._parser.send(data)
+        except StopIteration as e:
+            # the parser must have changed, e.value is the unused data
+            if e.value:
+                self._parser.send(e.value)
+        except Exception as e:
+            self.parser_exception(e)
 
     def pause_writing(self):
         assert not self._paused
@@ -53,6 +68,9 @@ class DrainableProtocol(asyncio.Protocol):
         waiter = self.loop.create_future()
         self._drain_waiter = waiter
         await waiter
+
+    def parser_exception(self, exc) -> None:
+        pass
 
 
 def async_callback(func):

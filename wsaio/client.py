@@ -4,30 +4,16 @@ import urllib.parse
 from http import HTTPStatus
 
 from .exceptions import UnexpectedHttpResponse
-from .http import HttpProtocol, HttpRequest, HttpResponse
-from .protocol import DrainableProtocol
+from .http import HttpRequest, HttpResponse, HttpResponseProtocol
 from .websocket import WebSocketFrame, WebSocketOpcode, WebSocketProtocol
 
 
-class WebSocketClient(DrainableProtocol, HttpProtocol, WebSocketProtocol):
+class WebSocketClient(HttpResponseProtocol, WebSocketProtocol):
     def __init__(self, loop=None):
         super().__init__(loop)
         self.transport = None
         self._have_headers = self.loop.create_future()
-        self._parser = None
         self.sec_ws_key = base64.b64encode(os.urandom(16))
-
-    def set_parser(self, parser):
-        parser.send(None)
-        self._parser = parser
-
-    def data_received(self, data):
-        try:
-            self._parser.send(data)
-        except StopIteration as e:
-            # the parser must have changed, e.value is the unused data
-            if e.value:
-                self._parser.send(e.value)
 
     def http_response_received(self, response: HttpResponse) -> None:
         if response.status != HTTPStatus.SWITCHING_PROTOCOLS:

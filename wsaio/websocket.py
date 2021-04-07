@@ -6,14 +6,7 @@ import struct
 from typing import ByteString
 
 from .utils import ensure_length
-
-
-class WebSocketProtocol:
-    def ws_connected(self) -> None:
-        pass
-
-    def ws_frame_received(self, frame: WebSocketFrame) -> None:
-        pass
+from .exceptions import ParserInvalidDataError
 
 
 class WebSocketOpcode(enum.IntEnum):
@@ -23,6 +16,47 @@ class WebSocketOpcode(enum.IntEnum):
     CLOSE = 0x8
     PING = 0x9
     PONG = 0xA
+
+
+class WebSocketCloseCode(enum.IntEnum):
+    # 0 - 999 NOT USED
+    NORMAL_CLOSURE = 1000  # Server <-> Client
+    GOING_AWAY = 1001  # Server <-> Client
+    PROTOCOL_ERROR = 1002  # Server <-> Client
+    UNSUPPORTED_DATA = 1003  # Server <-> Client
+    NO_STATUS_RECEIVED = 1005  # Server ~ Client (Reserved for "applications")
+    ABNORMAL_CLOSURE = 1006  # Server ~ Client (Reserved for "applications")
+    INVALID_PAYLOAD_DATA = 1007  # Server <-> Client
+    POLICY_VIOLATION = 1008  # Server <-> Client
+    MESSAGE_TOO_BIG = 1009  # Server <-> Client
+    MANDATORY_EXTENSION = 1010  # Server <-(>?) Client
+    INTERNAL_SERVER_ERROR = 1011  # Server -> Client
+    TLS_HANDSHAKE = 1015  # Server ~ Client (Reserved for "applications")
+    # XXX: What's the difference between an application and an endpoint?
+    # 1000 - 2999 RESERVED FOR WEBSOCKET PROTOCOL
+    # 3000 - 3999 RESERVED FOR LIBRARIES, FRAMEWORKS AND APPS
+    # 4000 - 4999 RESERVED FOR PRIVATE USE
+
+
+class WebSocketState(enum.IntEnum):
+    IDLE = 0
+    HANDSHAKING = 1
+    CLOSING = 2
+    ABORTED = 3
+
+
+class WebSocketProtocol:
+    def ws_connected(self) -> None:
+        pass
+
+    def ws_frame_received(self, frame: WebSocketFrame) -> None:
+        pass
+
+    def ws_binary_received(self, data: bytes) -> None:
+        pass
+
+    def ws_text_received(self, data: str) -> None:
+        pass
 
 
 class WebSocketFrame:
@@ -87,6 +121,7 @@ class WebSocketFrame:
     def parser(cls, protocol: WebSocketProtocol):
         data = yield
         position = 0
+        fragments = []
 
         while True:
             data = data[position:]
@@ -131,4 +166,36 @@ class WebSocketFrame:
                 rsv2=(fbyte >> 5) & 1, rsv3=(fbyte >> 4) & 1,
                 data=payload
             )
+
+            # TODO: Check rsv1-3
+
             protocol.ws_frame_received(frame)
+
+            control = (frame.opcode >> 7) & 1
+
+            if control:
+                # TODO: Call proto methods
+                pass
+            else:
+                if fragments:
+                    if frame.opcode != WebSocketOpcode.CONTINUATION:
+                        extra = {
+                            'close_code': WebSocketCloseCode.PROTOCOL_ERROR,
+                            'frame': frame,
+                            'protocol': protocol
+                        }
+                        raise ParserInvalidDataError(
+                            f'Expected opcode {WebSocketOpcode.CONTINUATION} '
+                            f'(continuation), got {frame.opcode}',
+                            extra
+                        )
+                    else:
+                        fragments.append(frame)
+                        if frame.fin:
+                            # TODO: Concatenate and call ptoto methods
+                            pass
+                elif not frame.fin:
+                    fragments.append(frame)
+                else:
+                    # TODO: Call proto methods
+                    pass

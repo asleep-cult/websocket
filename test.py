@@ -18,7 +18,7 @@ class HelloClient(wsaio.WebSocketClient):
         print(f'[HelloClient] Received frame - DATA: {data}')
 
     def closing_connection(self, exc):
-        print(f'[HelloClient] Closed while {self.strstate()}\n\n', str(exc))
+        print(f'[HelloClient] Closed while {self.strstate()}', str(exc))
 
 
 client = HelloClient()

@@ -19,21 +19,6 @@ class WebSocketClient(BaseProtocol, HttpResponseProtocol, WebSocketProtocol):
 
     strstate = WebSocketProtocol.strstate
 
-    @taskify
-    async def _close(self, exc=None):
-        if exc is not None:
-            if self.state is WebSocketState.HANDSHAKING:
-                self._handshake_complete.set_exception(exc)
-            else:
-                close_code = WebSocketCloseCode.NORMAL_CLOSURE
-                if isinstance(exc, WsaioError):
-                    close_code = exc.get_extra(
-                        'close_code',
-                        WebSocketCloseCode.NORMAL_CLOSURE
-                    )
-                await self._send_close(close_code, str(exc))
-        super()._close(exc)
-
     def http_response_received(self, response: HttpResponse) -> None:
         extra = {
             'response': response,
@@ -81,65 +66,117 @@ class WebSocketClient(BaseProtocol, HttpResponseProtocol, WebSocketProtocol):
 
         self.ws_connected()
 
+    @taskify
+    async def connection_made(self, transport):
+        super().connection_made(transport)
+        request = HttpRequest(
+            method='GET',
+            path=self.url.path + self.url.params,
+            headers=self.headers,
+            body=b''
+        )
+        await self.write(request.encode())
+
     async def connect(self, url, *args, **kwargs):
         self.sec_ws_key = base64.b64encode(os.urandom(16))
 
-        headers = kwargs.pop('headers', {})
+        self.headers = kwargs.pop('headers', {})
 
         self.set_parser(HttpResponse.parser(self))
 
-        url = urllib.parse.urlparse(url)
-        ssl = kwargs.pop('ssl', url.scheme == 'wss')
-        port = kwargs.pop('port', 443 if ssl else 80)
+        self.url = urllib.parse.urlparse(url)
+        self.ssl = kwargs.pop('ssl', self.url.scheme == 'wss')
+        self.port = kwargs.pop('port', 443 if self.ssl else 80)
 
-        self.transport, _ = await self.loop.create_connection(
-            lambda: self, url.hostname, port, *args, ssl=ssl, **kwargs
-        )
-
-        headers.update({
-            'Host': f'{url.hostname}:{port}',
+        self.headers.update({
+            'Host': f'{self.url.hostname}:{self.port}',
             'Connection': 'Upgrade',
             'Upgrade': 'websocket',
             'Sec-WebSocket-Key': self.sec_ws_key.decode(),
             'Sec-WebSocket-Version': 13
         })
 
-        request = HttpRequest(
-            method='GET',
-            path=url.path + url.params,
-            headers=headers,
-            body=b''
-        )
         self.state = WebSocketState.HANDSHAKING
-        await self.write(request.encode(), drain=True)
+
+        await self.loop.create_connection(
+            lambda: self, self.url.hostname,
+            self.port, *args, ssl=self.ssl, **kwargs
+        )
 
         await self._handshake_complete
 
     def parser_invalid_data(self, exc):
         self._close(exc)
 
+    @taskify
+    async def _close(self, exc=None):
+        if exc is not None:
+            if self.state is WebSocketState.HANDSHAKING:
+                self._handshake_complete.set_exception(exc)
+            else:
+                close_code = WebSocketCloseCode.NORMAL_CLOSURE
+                if isinstance(exc, WsaioError):
+                    close_code = exc.get_extra(
+                        'close_code',
+                        WebSocketCloseCode.NORMAL_CLOSURE
+                    )
+                await self._send_close(close_code, str(exc).encode())
+        super()._close(exc)
+
     async def _send_close(
-        self, code: int, reason: str, drain: bool = True
+        self,
+        code: int,
+        data: bytes,
+        *,
+        drain: bool = True
     ) -> None:
-        data = code.to_bytes(2, 'big', signed=False) + reason.encode()
+        code = code.to_bytes(2, 'big', signed=False)
         await self.send_frame(
             WebSocketFrame(
                 opcode=WebSocketOpcode.CLOSE,
+                data=code + (data or b'')
+            ),
+            drain=drain
+        )
+
+    async def close(
+        self,
+        code: int,
+        data: bytes = None,
+        *,
+        drain: bool = True
+    ) -> None:
+        await self._send_close(code, data, drain=drain)
+        super()._close()
+
+    async def send_frame(
+        self,
+        frame: WebSocketFrame,
+        *,
+        drain: bool = False
+    ) -> None:
+        await self.write(frame.encode(masked=True), drain=drain)
+
+    async def send_bytes(
+        self,
+        data: bytes,
+        *,
+        opcode: WebSocketOpcode = WebSocketOpcode.TEXT,
+        drain: bool = False
+    ) -> None:
+        await self.send_frame(
+            WebSocketFrame(
+                opcode=opcode,
                 data=data
             ),
             drain=drain
         )
 
-    async def send_frame(
-        self, frame: WebSocketFrame, *, drain: bool = False
+    async def send_str(
+        self,
+        data: str,
+        *,
+        opcode: WebSocketOpcode = WebSocketOpcode.TEXT,
+        drain: bool = False
     ) -> None:
-        await self.write(frame.encode(masked=True), drain=drain)
-
-    async def send_bytes(self, data: bytes, *, drain: bool = False) -> None:
-        await self.send_frame(
-            WebSocketFrame(opcode=WebSocketOpcode.TEXT, data=data),
-            drain=drain
-        )
-
-    async def send_str(self, data: str, *, drain: bool = False) -> None:
-        await self.send_bytes(data.encode(), drain=drain)
+        await self.send_bytes(data.encode(), opcode=opcode, drain=drain)

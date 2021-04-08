@@ -1,7 +1,3 @@
-# wsaio
-An event-driven WebSocket library for Python built on top of asyncio's protocols.
-
-```py
 import asyncio
 import itertools
 
@@ -25,4 +21,3 @@ class HelloClient(wsaio.WebSocketClient):
 client = HelloClient()
 client.loop.create_task(client.connect(URL))
 client.loop.run_forever()
-```

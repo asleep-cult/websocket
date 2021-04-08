@@ -1,5 +1,15 @@
 import asyncio
+import enum
 import functools
+
+from .exceptions import ParserInvalidDataError
+
+
+class BaseProtocolState(enum.IntEnum):
+    INIT = 0
+    IDLE = 1
+    PARSING = 2
+    ABORTED = 3
 
 
 class BaseProtocol(asyncio.Protocol):
@@ -13,20 +23,45 @@ class BaseProtocol(asyncio.Protocol):
         self._drain_waiter = None
         self._connection_lost = False
         self._parser = None
+        self.transport = None
+        self.state = BaseProtocolState.INIT
+
+    def _strstate(self):
+        if self.state is BaseProtocolState.INIT:
+            return 'initialized'
+        elif self.state is BaseProtocolState.IDLE:
+            return 'idling'
+        elif self.state is BaseProtocolState.PARSING:
+            return 'parsing'
+        elif self.state is BaseProtocolState.ABORTED:
+            return 'aborted'
+
+    def abort(self, exc=None):
+        self.state = BaseProtocolState.ABORTED
+        self.transport.abort()
+
+    def connection_made(self, transport):
+        self.transport = transport
 
     def set_parser(self, parser):
         parser.send(None)
         self._parser = parser
 
     def data_received(self, data):
-        try:
-            self._parser.send(data)
-        except StopIteration as e:
-            # the parser must have changed, e.value is the unused data
-            if e.value:
-                self._parser.send(e.value)
-        except Exception as e:
-            self.parser_exception(e)
+        state = self.state
+        self.state = BaseProtocolState.PARSING
+        while data:
+            try:
+                self._parser.send(data)
+                self.state = state
+                return
+            except StopIteration as e:
+                # the parser must have changed, e.value is the unused data
+                data = e.value
+            except ParserInvalidDataError as e:
+                self.parser_invalid_data(e)
+                return
+        self.state = state
 
     def pause_writing(self):
         assert not self._paused
@@ -69,7 +104,12 @@ class BaseProtocol(asyncio.Protocol):
         self._drain_waiter = waiter
         await waiter
 
-    def parser_exception(self, exc) -> None:
+    async def write(self, data: bytes, *, drain: bool = False) -> None:
+        self.transport.write(data)
+        if drain:
+            await self.drain()
+
+    def parser_invalid_data(self, exc) -> None:
         pass
 
 

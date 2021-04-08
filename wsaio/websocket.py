@@ -5,8 +5,8 @@ import os
 import struct
 from typing import ByteString
 
-from .utils import ensure_length
 from .exceptions import ParserInvalidDataError
+from .utils import ensure_length
 
 
 class WebSocketOpcode(enum.IntEnum):
@@ -39,15 +39,19 @@ class WebSocketCloseCode(enum.IntEnum):
 
 
 class WebSocketState(enum.IntEnum):
-    IDLE = 0
-    HANDSHAKING = 1
-    CLOSING = 2
-    ABORTED = 3
+    HANDSHAKING = 4
 
 
 class WebSocketProtocol:
     def __init__(self):
         self.extensions = []
+
+    def _strstate(self):
+        strstate = super()._strstate()
+        if strstate is not None:
+            return strstate
+        elif strstate is WebSocketState.HANDSHAKING:
+            return 'handshaking'
 
     def ws_connected(self) -> None:
         pass
@@ -67,7 +71,7 @@ class WebSocketProtocol:
     def ws_pong_received(self, data: bytes) -> None:
         pass
 
-    def ws_close_received(self, code: WebSocketCloseCode, data: bytes) -> None:
+    def ws_close_received(self, code: int, data: bytes) -> None:
         pass
 
 
@@ -239,10 +243,12 @@ class WebSocketFrame:
 
                 if frame.opcode is WebSocketOpcode.TEXT:
                     try:
-                        data = frame.data.decode()
+                        string = frame.data.decode()
                     except UnicodeDecodeError as e:
-                        extra['close_code'] = WebSocketCloseCode.INVALID_PAYLOAD_DATA
+                        extra['close_code'] = (
+                            WebSocketCloseCode.INVALID_PAYLOAD_DATA
+                        )
                         raise ParserInvalidDataError(str(e), extra)
-                    protocol.ws_text_received(data)
+                    protocol.ws_text_received(string)
                 elif frame.opcode is WebSocketOpcode.BINARY:
                     protocol.ws_binary_received(frame.data)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import http
 import re
 
+from .exceptions import ParserInvalidDataError
 from .utils import ensure_length
 
 SENTINEL = object()
@@ -118,7 +119,19 @@ class HttpResponse:
         headers, body = yield from _find_headers()
 
         status_line, = next(headers)
-        match = cls.STATUS_LINE_REGEX.match(status_line.decode())
+
+        extra = {
+            'protocol': protocol,
+            'status_line': status_line
+        }
+
+        try:
+            match = cls.STATUS_LINE_REGEX.match(status_line.decode())
+        except UnicodeDecodeError as e:
+            raise ParserInvalidDataError(str(e), extra)
+
+        if match is None:
+            raise ParserInvalidDataError('The status line is invalid', extra)
 
         headers_dict = Headers()
         for key, value in headers:
@@ -169,7 +182,19 @@ class HttpRequest:
         headers, body = yield from _find_headers()
 
         request_line, = next(headers)
-        match = cls.REQUEST_LINE_REXEX.match(request_line)
+
+        extra = {
+            'protocol': protocol,
+            'request_line': request_line
+        }
+
+        try:
+            match = cls.REQUEST_LINE_REXEX.match(request_line.decode())
+        except UnicodeDecodeError as e:
+            raise ParserInvalidDataError(str(e), extra)
+
+        if match is None:
+            raise ParserInvalidDataError('The request line is invalid', extra)
 
         headers_dict = Headers()
         for key, value in headers:

@@ -2,14 +2,14 @@ import asyncio
 import enum
 import functools
 
-from .exceptions import ParserInvalidDataError
+from .exceptions import ConnectionClosedError, ParserInvalidDataError
 
 
 class BaseProtocolState(enum.IntEnum):
     INIT = 0
     IDLE = 1
+    CLOSED = 3
     PARSING = 2
-    ABORTED = 3
 
 
 class BaseProtocol(asyncio.Protocol):
@@ -26,19 +26,20 @@ class BaseProtocol(asyncio.Protocol):
         self.transport = None
         self.state = BaseProtocolState.INIT
 
-    def _strstate(self):
+    def strstate(self):
         if self.state is BaseProtocolState.INIT:
             return 'initialized'
         elif self.state is BaseProtocolState.IDLE:
             return 'idling'
         elif self.state is BaseProtocolState.PARSING:
             return 'parsing'
-        elif self.state is BaseProtocolState.ABORTED:
-            return 'aborted'
+        elif self.state is BaseProtocolState.CLOSED:
+            return 'closed'
 
-    def abort(self, exc=None):
-        self.state = BaseProtocolState.ABORTED
-        self.transport.abort()
+    def _close(self, exc=None):
+        self.closing_connection(exc)
+        self.state = BaseProtocolState.CLOSED
+        self.transport.close()
 
     def connection_made(self, transport):
         self.transport = transport
@@ -59,7 +60,7 @@ class BaseProtocol(asyncio.Protocol):
                 # the parser must have changed, e.value is the unused data
                 data = e.value
             except ParserInvalidDataError as e:
-                self.parser_invalid_data(e)
+                self._close(e)
                 return
         self.state = state
 
@@ -105,15 +106,25 @@ class BaseProtocol(asyncio.Protocol):
         await waiter
 
     async def write(self, data: bytes, *, drain: bool = False) -> None:
+        extra = {
+            'protocol': self,
+            'data': data
+        }
+        if self.state is BaseProtocolState.CLOSED:
+            raise ConnectionClosedError(
+                'Attempt to write to a closed/closing transport',
+                extra
+            )
+
         self.transport.write(data)
         if drain:
             await self.drain()
 
-    def parser_invalid_data(self, exc) -> None:
+    def closing_connection(self, exc) -> None:
         pass
 
 
-def async_callback(func):
+def taskify(func):
     @functools.wraps(func)
     def callback(protocol, *args, **kwargs):
         protocol.loop.create_task(func(protocol, *args, **kwargs))

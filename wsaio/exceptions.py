@@ -13,3 +13,7 @@ class BrokenHandshakeError(WsaioError):
 
 class ParserInvalidDataError(WsaioError):
     pass
+
+
+class ConnectionClosedError(WsaioError, ConnectionError):
+    pass

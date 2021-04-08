@@ -81,19 +81,16 @@ def _iter_headers(headers: bytes):
 
 
 def _find_headers():
-    headers = b''
-    body = b''
+    data = b''
 
     while True:
-        headers += yield
-        end = headers.find(b'\r\n\r\n') + 4
+        data += yield
+        end = data.find(b'\r\n\r\n') + 4
 
         if end != -1:
-            headers = headers[:end]
-            body += headers[end:]
-            break
-
-    return _iter_headers(headers), body
+            headers = data[:end]
+            body = data[end:]
+            return _iter_headers(headers), body
 
 
 class HttpResponse:
@@ -137,7 +134,15 @@ class HttpResponse:
         for key, value in headers:
             headers_dict[key] = value
 
-        content_length = headers_dict.get(b'content-length', 0)
+        content_length = headers_dict.get(b'content-length')
+
+        if content_length is not None:
+            try:
+                content_length = int(content_length.decode())
+            except UnicodeDecodeError as e:
+                raise ParserInvalidDataError(str(e), extra)
+        else:
+            content_length = 0
 
         body = yield from ensure_length(body, content_length)
 

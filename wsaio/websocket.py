@@ -6,6 +6,7 @@ import struct
 from typing import ByteString
 
 from .exceptions import ParserInvalidDataError
+from .protocol import BaseProtocol
 from .utils import ensure_length
 
 
@@ -46,11 +47,11 @@ class WebSocketProtocol:
     def __init__(self):
         self.extensions = []
 
-    def _strstate(self):
-        strstate = super()._strstate()
+    def strstate(self):
+        strstate = BaseProtocol.strstate(self)
         if strstate is not None:
             return strstate
-        elif strstate is WebSocketState.HANDSHAKING:
+        elif self.state is WebSocketState.HANDSHAKING:
             return 'handshaking'
 
     def ws_connected(self) -> None:

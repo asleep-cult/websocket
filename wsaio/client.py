@@ -124,11 +124,7 @@ class WebSocketClient(BaseProtocol, HttpResponseProtocol, WebSocketProtocol):
         super()._close(exc)
 
     async def _send_close(
-        self,
-        code: int,
-        data: bytes,
-        *,
-        drain: bool = True
+        self, code: int, data: bytes, *, drain: bool = True
     ) -> None:
         code = code.to_bytes(2, 'big', signed=False)
         await self.send_frame(
@@ -140,43 +136,27 @@ class WebSocketClient(BaseProtocol, HttpResponseProtocol, WebSocketProtocol):
         )
 
     async def close(
-        self,
-        code: int,
-        data: bytes = None,
-        *,
-        drain: bool = True
+        self, code: int, data: bytes = None, *, drain: bool = True
     ) -> None:
         await self._send_close(code, data, drain=drain)
         super()._close()
 
     async def send_frame(
-        self,
-        frame: WebSocketFrame,
-        *,
-        drain: bool = False
+        self, frame: WebSocketFrame, *, drain: bool = False
     ) -> None:
         await self.write(frame.encode(masked=True), drain=drain)
 
     async def send_bytes(
-        self,
-        data: bytes,
-        *,
-        opcode: WebSocketOpcode = WebSocketOpcode.TEXT,
+        self, data: bytes, *, opcode: WebSocketOpcode = WebSocketOpcode.TEXT,
         drain: bool = False
     ) -> None:
         await self.send_frame(
-            WebSocketFrame(
-                opcode=opcode,
-                data=data
-            ),
+            WebSocketFrame(opcode=opcode, data=data),
             drain=drain
         )
 
     async def send_str(
-        self,
-        data: str,
-        *,
-        opcode: WebSocketOpcode = WebSocketOpcode.TEXT,
+        self, data: str, *, opcode: WebSocketOpcode = WebSocketOpcode.TEXT,
         drain: bool = False
     ) -> None:
         await self.send_bytes(data.encode(), opcode=opcode, drain=drain)

@@ -129,8 +129,7 @@ class WebSocketClient(BaseProtocol, HttpResponseProtocol, WebSocketProtocol):
         code = code.to_bytes(2, 'big', signed=False)
         await self.send_frame(
             WebSocketFrame(
-                opcode=WebSocketOpcode.CLOSE,
-                data=code + (data or b'')
+                opcode=WebSocketOpcode.CLOSE, data=code + (data or b'')
             ),
             drain=drain
         )

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import http
 import re
+from http import HTTPStatus
 
 from .exceptions import ParserInvalidDataError
 from .utils import ensure_length
@@ -100,7 +100,7 @@ class HttpResponse:
 
     def __init__(self, *, version='1.1', status, phrase, headers, body):
         self.version = version
-        self.status = http.HTTPStatus(status)
+        self.status = HTTPStatus(status)
         self.phrase = phrase
         self.headers = headers
         self.body = body

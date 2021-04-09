@@ -26,7 +26,7 @@ class WebSocketClient(BaseProtocol, HttpResponseProtocol, WebSocketProtocol):
         }
 
         expected_status = HTTPStatus.SWITCHING_PROTOCOLS
-        if response.status != expected_status:
+        if response.status is not expected_status:
             return self._close(
                 BrokenHandshakeError(
                     f'Server responsed with status code {response.status} '

@@ -138,7 +138,8 @@ class WebSocketFrame:
     def parser(cls, protocol: WebSocketProtocol):
         data = yield
         position = 0
-        fragments = []
+        fragmented_frame = None
+        fragment_buffer = bytearray()
 
         while True:
             data = data[position:]
@@ -224,7 +225,7 @@ class WebSocketFrame:
                     data = frame.data[2:]
                     protocol.ws_close_received(close_clode, data)
             else:
-                if fragments:
+                if fragmented_frame is not None:
                     if frame.opcode is not WebSocketOpcode.CONTINUATION:
                         extra['close_code'] = WebSocketCloseCode.PROTOCOL_ERROR
                         raise ParserInvalidDataError(
@@ -233,14 +234,15 @@ class WebSocketFrame:
                             extra
                         )
                     else:
-                        fragments.append(frame)
+                        fragment_buffer.extend(frame.data)
                         if frame.fin:
-                            frame = fragments[0]
-                            frame.data = b''.join(f.data for f in fragments)
-                            fragments = []
+                            frame = fragmented_frame
+                            fragmented_frame = None
+                            frame.data = bytes(fragment_buffer)
                 elif not frame.fin:
-                    fragments.append(frame)
-                    continue
+                    fragment_buffer.clear()
+                    fragment_buffer.extend(frame.data)
+                    fragmented_frame = frame
 
                 if frame.opcode is WebSocketOpcode.TEXT:
                     try:

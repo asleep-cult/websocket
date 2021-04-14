@@ -5,7 +5,7 @@ with open('README.md', 'r') as fp:
 
 setuptools.setup(
     name='wsaio',
-    version='0.0.1',
+    version='0.0.2',
     author='Zavier Mayo',
     description='An event-driven WebSocket library for Python.',
     long_description=readme,

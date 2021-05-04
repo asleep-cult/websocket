@@ -19,6 +19,10 @@ class WebSocketOpcode(enum.IntEnum):
     PONG = 0xA
 
 
+CONTROL_OPCODES = (WebSocketOpcode.CLOSE, WebSocketOpcode.PING,
+                   WebSocketOpcode.PONG)
+
+
 class WebSocketCloseCode(enum.IntEnum):
     # 0 - 999 NOT USED
     NORMAL_CLOSURE = 1000  # Server <-> Client
@@ -80,11 +84,9 @@ class WebSocketFrame:
     SHORT_LENGTH = struct.Struct('!H')
     LONGLONG_LENGTH = struct.Struct('!Q')
 
-    def __init__(
-        self, *, opcode: WebSocketOpcode, fin: bool = True,
-        rsv1: bool = False, rsv2: bool = False, rsv3: bool = False,
-        data: ByteString
-    ):
+    def __init__(self, *, opcode: WebSocketOpcode, fin: bool = True,
+                 rsv1: bool = False, rsv2: bool = False, rsv3: bool = False,
+                 data: ByteString):
         self.opcode = opcode
         self.fin = fin
         self.rsv1 = rsv1
@@ -178,12 +180,10 @@ class WebSocketFrame:
             if masked:
                 payload = cls.mask(data, mask)
 
-            frame = cls(
-                opcode=WebSocketOpcode(fbyte & 0xF),
-                fin=(fbyte >> 7) & 1, rsv1=(fbyte >> 6) & 1,
-                rsv2=(fbyte >> 5) & 1, rsv3=(fbyte >> 4) & 1,
-                data=payload
-            )
+            frame = cls(opcode=WebSocketOpcode(fbyte & 0xF),
+                        fin=(fbyte >> 7) & 1, rsv1=(fbyte >> 6) & 1,
+                        rsv2=(fbyte >> 5) & 1, rsv3=(fbyte >> 4) & 1,
+                        data=payload)
             protocol.ws_frame_received(frame)
 
             extra = {
@@ -196,30 +196,26 @@ class WebSocketFrame:
                     extra['close_code'] = WebSocketCloseCode.PROTOCOL_ERROR
                     raise ParserInvalidDataError(
                         'Received rsv1, rsv2 or rsv3 but no extensions '
-                        'were negotiated',
-                        extra
-                    )
+                        'were negotiated', extra)
 
-            control = (frame.opcode >> 7) & 1
-
-            if control:
+            if frame.opcode in CONTROL_OPCODES:
                 if len(frame.data) > 125:
                     extra['close_code'] = WebSocketCloseCode.PROTOCOL_ERROR
                     raise ParserInvalidDataError(
                         'Received control frame with payload length > 125 '
-                        f'({len(frame.data)})',
-                        extra
-                    )
+                        f'({len(frame.data)})', extra)
+
                 elif not frame.fin:
                     extra['close_code'] = WebSocketCloseCode.PROTOCOL_ERROR
                     raise ParserInvalidDataError(
-                        'Received fragmented control frame',
-                        extra
-                    )
+                        'Received fragmented control frame', extra)
+
                 elif frame.opcode is WebSocketOpcode.PING:
                     protocol.ws_ping_received(frame.data)
+
                 elif frame.opcode is WebSocketOpcode.PONG:
                     protocol.ws_pong_received(frame.data)
+
                 elif frame.opcode is WebSocketOpcode.CLOSE:
                     close_clode = int.from_bytes(frame.data[:2], 'big')
                     data = frame.data[2:]
@@ -239,6 +235,7 @@ class WebSocketFrame:
                             frame = fragmented_frame
                             fragmented_frame = None
                             frame.data = bytes(fragment_buffer)
+
                 elif not frame.fin:
                     fragment_buffer.clear()
                     fragment_buffer.extend(frame.data)
@@ -253,5 +250,6 @@ class WebSocketFrame:
                         )
                         raise ParserInvalidDataError(str(e), extra)
                     protocol.ws_text_received(string)
+
                 elif frame.opcode is WebSocketOpcode.BINARY:
                     protocol.ws_binary_received(frame.data)

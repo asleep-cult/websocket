@@ -146,28 +146,23 @@ class HTTPResponse:
 
         body = yield from ensure_length(body, content_length)
 
-        response = cls(
-            version=match.group('version'),
-            status=int(match.group('status')),
-            phrase=match.group('phrase'),
-            headers=headers_dict,
-            body=body[:content_length]
-        )
+        response = cls(version=match.group('version'),
+                       status=int(match.group('status')),
+                       phrase=match.group('phrase'),
+                       headers=headers_dict,
+                       body=body[:content_length])
         protocol.http_response_received(response)
 
         return body[content_length:]
 
 
 class HTTPRequest:
-    METHODS = (
-        'GET', 'HEAD', 'POST', 'PUT', 'DELETE',
-        'CONNECT', 'OPTIONS', 'TRACE', 'PATCH'
-    )
+    METHODS = ('GET', 'HEAD', 'POST', 'PUT', 'DELETE',
+               'CONNECT', 'OPTIONS', 'TRACE', 'PATCH')
 
     REQUEST_LINE_REXEX = re.compile(
         rf'(?P<method>{"|".join(METHODS)}) (?P<path>.+) '
-        r'HTTP/(?P<version>\d((?=\.)(\.\d))?)'
-    )
+        r'HTTP/(?P<version>\d((?=\.)(\.\d))?)')
 
     def __init__(self, *, version='1.1', method, path=None, headers, body):
         self.version = version
@@ -209,13 +204,11 @@ class HTTPRequest:
 
         body = yield from ensure_length(body, content_length)
 
-        request = cls(
-            version=match.group('version'),
-            method=match.group('method'),
-            path=match.group('path'),
-            headers=headers_dict,
-            body=body
-        )
+        request = cls(version=match.group('version'),
+                      method=match.group('method'),
+                      path=match.group('path'),
+                      headers=headers_dict,
+                      body=body)
         protocol.http_request_received(request)
 
         return body[content_length:]

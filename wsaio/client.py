@@ -123,39 +123,27 @@ class WebSocketClient(BaseProtocol, HTTPResponseProtocol, WebSocketProtocol):
                 await self._send_close(close_code, str(exc).encode())
         super()._close(exc)
 
-    async def _send_close(
-        self, code: int, data: bytes, *, drain: bool = True
-    ) -> None:
+    async def _send_close(self, code: int, data: bytes, *,
+                          drain: bool = True) -> None:
         code = code.to_bytes(2, 'big', signed=False)
         await self.send_frame(
-            WebSocketFrame(
-                opcode=WebSocketOpcode.CLOSE, data=code + (data or b'')
-            ),
-            drain=drain
-        )
+            WebSocketFrame(opcode=WebSocketOpcode.CLOSE,
+                           data=code + (data or b'')),
+            drain=drain)
 
-    async def close(
-        self, code: int, data: bytes = None, *, drain: bool = True
-    ) -> None:
+    async def close(self, code: int, data: bytes = None, *,
+                    drain: bool = True) -> None:
         await self._send_close(code, data, drain=drain)
         super()._close()
 
-    async def send_frame(
-        self, frame: WebSocketFrame, *, drain: bool = False
-    ) -> None:
-        await self.write(frame.encode(masked=True), drain=drain)
+    async def send_frame(self, frame: WebSocketFrame, **kwargs) -> None:
+        await self.write(frame.encode(masked=True), **kwargs)
 
-    async def send_bytes(
-        self, data: bytes, *, opcode: WebSocketOpcode = WebSocketOpcode.TEXT,
-        drain: bool = False
-    ) -> None:
-        await self.send_frame(
-            WebSocketFrame(opcode=opcode, data=data),
-            drain=drain
-        )
+    async def send_bytes(self, data: bytes, *,
+                         opcode: WebSocketOpcode = WebSocketOpcode.TEXT,
+                         **kwargs) -> None:
+        await self.send_frame(WebSocketFrame(opcode=opcode, data=data),
+                              **kwargs)
 
-    async def send_str(
-        self, data: str, *, opcode: WebSocketOpcode = WebSocketOpcode.TEXT,
-        drain: bool = False
-    ) -> None:
-        await self.send_bytes(data.encode(), opcode=opcode, drain=drain)
+    async def send_str(self, data: str, *args, **kwargs) -> None:
+        await self.send_bytes(data.encode(), *args, **kwargs)

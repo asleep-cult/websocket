@@ -113,8 +113,7 @@ class BaseProtocol(asyncio.Protocol):
         if self.state is BaseProtocolState.CLOSED:
             raise ConnectionClosedError(
                 'Attempt to write to a closed/closing transport',
-                extra
-            )
+                extra)
 
         self.transport.write(data)
         if drain:

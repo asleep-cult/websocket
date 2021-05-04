@@ -95,8 +95,7 @@ def _find_headers():
 
 class HTTPResponse:
     STATUS_LINE_REGEX = re.compile(
-        r'HTTP/(?P<version>\d((?=\.)(\.\d))?) (?P<status>\d+) (?P<phrase>.+)'
-    )
+        r'HTTP/(?P<version>\d((?=\.)(\.\d))?) (?P<status>\d+) (?P<phrase>.+)')
 
     def __init__(self, *, version='1.1', status, phrase, headers, body):
         self.version = version

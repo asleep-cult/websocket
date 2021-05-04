@@ -56,13 +56,13 @@ class Headers(dict):
         return value
 
 
-class HttpResponseProtocol:
-    def http_response_received(self, response: HttpResponse) -> None:
+class HTTPResponseProtocol:
+    def http_response_received(self, response: HTTPResponse) -> None:
         pass
 
 
-class HttpRequestProtocol:
-    def http_request_received(self, request: HttpRequest) -> None:
+class HTTPRequestProtocol:
+    def http_request_received(self, request: HTTPRequest) -> None:
         pass
 
 
@@ -93,7 +93,7 @@ def _find_headers():
             return _iter_headers(headers), body
 
 
-class HttpResponse:
+class HTTPResponse:
     STATUS_LINE_REGEX = re.compile(
         r'HTTP/(?P<version>\d((?=\.)(\.\d))?) (?P<status>\d+) (?P<phrase>.+)'
     )
@@ -112,7 +112,7 @@ class HttpResponse:
         return b'\r\n'.join(part.encode() for part in response)
 
     @classmethod
-    def parser(cls, protocol: HttpResponseProtocol):
+    def parser(cls, protocol: HTTPResponseProtocol):
         headers, body = yield from _find_headers()
 
         status_line, = next(headers)
@@ -158,7 +158,7 @@ class HttpResponse:
         return body[content_length:]
 
 
-class HttpRequest:
+class HTTPRequest:
     METHODS = (
         'GET', 'HEAD', 'POST', 'PUT', 'DELETE',
         'CONNECT', 'OPTIONS', 'TRACE', 'PATCH'
@@ -183,7 +183,7 @@ class HttpRequest:
         return b'\r\n'.join(part.encode() for part in request)
 
     @classmethod
-    def parser(cls, protocol: HttpRequestProtocol):
+    def parser(cls, protocol: HTTPRequestProtocol):
         headers, body = yield from _find_headers()
 
         request_line, = next(headers)

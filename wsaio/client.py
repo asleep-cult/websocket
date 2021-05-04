@@ -4,22 +4,22 @@ import urllib.parse
 from http import HTTPStatus
 
 from .exceptions import BrokenHandshakeError, WsaioError
-from .http import HttpRequest, HttpResponse, HttpResponseProtocol
+from .http import HTTPRequest, HTTPResponse, HTTPResponseProtocol
 from .protocol import BaseProtocol, BaseProtocolState, taskify
-from .websocket import WebSocketCloseCode, WebSocketFrame, WebSocketOpcode, \
-    WebSocketProtocol, WebSocketState
+from .websocket import (WebSocketCloseCode, WebSocketFrame, WebSocketOpcode,
+                        WebSocketProtocol, WebSocketState)
 
 
-class WebSocketClient(BaseProtocol, HttpResponseProtocol, WebSocketProtocol):
+class WebSocketClient(BaseProtocol, HTTPResponseProtocol, WebSocketProtocol):
     def __init__(self, loop=None):
         BaseProtocol.__init__(self, loop)
-        HttpResponseProtocol.__init__(self)
+        HTTPResponseProtocol.__init__(self)
         WebSocketProtocol.__init__(self)
         self._handshake_complete = self.loop.create_future()
 
     strstate = WebSocketProtocol.strstate
 
-    def http_response_received(self, response: HttpResponse) -> None:
+    def http_response_received(self, response: HTTPResponse) -> None:
         extra = {
             'response': response,
             'protocol': self
@@ -69,7 +69,7 @@ class WebSocketClient(BaseProtocol, HttpResponseProtocol, WebSocketProtocol):
     @taskify
     async def connection_made(self, transport):
         super().connection_made(transport)
-        request = HttpRequest(
+        request = HTTPRequest(
             method='GET',
             path=self.url.path + self.url.params,
             headers=self.headers,
@@ -82,7 +82,7 @@ class WebSocketClient(BaseProtocol, HttpResponseProtocol, WebSocketProtocol):
 
         self.headers = kwargs.pop('headers', {})
 
-        self.set_parser(HttpResponse.parser(self))
+        self.set_parser(HTTPResponse.parser(self))
 
         self.url = urllib.parse.urlparse(url)
         self.ssl = kwargs.pop('ssl', self.url.scheme == 'wss')

@@ -147,3 +147,9 @@ class WebSocketClient(BaseProtocol, HTTPResponseProtocol, WebSocketProtocol):
 
     async def send_str(self, data: str, *args, **kwargs) -> None:
         await self.send_bytes(data.encode(), *args, **kwargs)
+
+    async def send_ping(self, *args, **kwrags) -> None:
+        await self.send_bytes(*args, **kwrags, opcode=WebSocketOpcode.PING)
+
+    async def send_pong(self, *args, **kwrags) -> None:
+        await self.send_bytes(*args, **kwrags, opcode=WebSocketOpcode.PONG)

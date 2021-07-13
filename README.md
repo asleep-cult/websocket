@@ -20,9 +20,6 @@ class HelloClient(wsaio.WebSocketClient):
     def ws_text_received(self, data):
         print(f'[HelloClient] Received frame - DATA: {data}')
 
-    def closing_connection(self, exc):
-        print(f'[HelloClient] Closed while {self.strstate()}', str(exc))
-
 
 client = HelloClient()
 client.loop.create_task(client.connect(URL))

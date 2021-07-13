@@ -25,13 +25,13 @@ class WebSocketClient:
         self.protocol.set_parser(HTTPResponse.parser(self.protocol))
         self.protocol.state = WebSocketProtocolState.HANDSHAKING
 
-        url = urlunparse(
-            ParseResult('', '', self.url.path, self.url.params, self.url.query, self.url.fragment)
+        result = ParseResult(
+            '', '', self.url.path or '/', self.url.params, self.url.query, self.url.fragment
         )
 
         request = HTTPRequest(
             method='GET',
-            path=url,
+            path=urlunparse(result),
             headers=self.headers,
             body=b''
         )

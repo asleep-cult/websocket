@@ -128,7 +128,7 @@ class WebSocketProtocol(asyncio.BaseProtocol):
         self._run_callback('ws_pong_received', data)
 
     def ws_close_received(self, code, data):
-        self._run_callback('ws_close_received', data)
+        self._run_callback('ws_close_received', code, data)
 
     async def drain(self):
         if self.state is WebSocketProtocolState.CLOSED:

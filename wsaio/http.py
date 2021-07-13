@@ -39,7 +39,7 @@ class Headers(dict):
 
     def popone(self, key, default=_SENTINEL):
         try:
-            return self.pop(key)[0]
+            return self[key].pop(0)
         except KeyError:
             if default is _SENTINEL:
                 raise
@@ -112,7 +112,7 @@ class HTTPResponse:
         for key, value in headers:
             headers_dict[key] = value
 
-        content_length = headers_dict.get(b'content-length')
+        content_length = headers_dict.getone(b'content-length')
 
         if content_length is not None:
             content_length = int(content_length.decode())
@@ -174,7 +174,12 @@ class HTTPRequest:
         for key, value in headers:
             headers_dict[key] = value
 
-        content_length = headers_dict.get(b'content-length', 0)
+        content_length = headers_dict.getone(b'content-length')
+
+        if content_length is not None:
+            content_length = int(content_length.decode())
+        else:
+            content_length = 0
 
         body = yield from ensure_length(body, content_length)
 
@@ -183,6 +188,6 @@ class HTTPRequest:
             headers=headers_dict, body=body
         )
 
-        protocol._run_callback('http_request_received', request)
+        protocol.http_request_received(request)
 
         return body[content_length:]

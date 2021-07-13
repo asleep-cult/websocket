@@ -7,7 +7,6 @@ URL = 'wss://echo.websocket.org'
 
 
 class HelloClient(wsaio.WebSocketClient):
-    @wsaio.taskify
     async def ws_connected(self):
         for i in itertools.count():
             print(f'[HelloClient] Sending data - COUNT: {i}')

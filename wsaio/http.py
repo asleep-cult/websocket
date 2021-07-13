@@ -102,10 +102,7 @@ class HTTPResponse:
             'status_line': status_line
         }
 
-        try:
-            match = cls.STATUS_LINE_REGEX.match(status_line.decode())
-        except UnicodeDecodeError as e:
-            raise ParserInvalidDataError(str(e), extra)
+        match = cls.STATUS_LINE_REGEX.match(status_line.decode())
 
         if match is None:
             raise ParserInvalidDataError('The status line is invalid', extra)
@@ -118,10 +115,7 @@ class HTTPResponse:
         content_length = headers_dict.get(b'content-length')
 
         if content_length is not None:
-            try:
-                content_length = int(content_length.decode())
-            except UnicodeDecodeError as e:
-                raise ParserInvalidDataError(str(e), extra)
+            content_length = int(content_length.decode())
         else:
             content_length = 0
 
@@ -170,10 +164,7 @@ class HTTPRequest:
             'request_line': request_line
         }
 
-        try:
-            match = cls.REQUEST_LINE_REXEX.match(request_line.decode())
-        except UnicodeDecodeError as err:
-            raise ParserInvalidDataError(str(err), extra)
+        match = cls.REQUEST_LINE_REXEX.match(request_line.decode())
 
         if match is None:
             raise ParserInvalidDataError('The request line is invalid', extra)

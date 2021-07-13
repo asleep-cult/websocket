@@ -1,8 +1,8 @@
 import asyncio
 import base64
 import os
-import urllib.parse
 from http import HTTPStatus
+from urllib.parse import ParseResult, urlparse, urlunparse
 
 from .exceptions import BrokenHandshakeError, WsaioError
 from .http import HTTPRequest, HTTPResponse
@@ -25,9 +25,13 @@ class WebSocketClient:
         self.protocol.set_parser(HTTPResponse.parser(self.protocol))
         self.protocol.state = WebSocketProtocolState.HANDSHAKING
 
+        url = urlunparse(
+            ParseResult('', '', self.url.path, self.url.params, self.url.query, self.url.fragment)
+        )
+
         request = HTTPRequest(
             method='GET',
-            path=self.url.path + self.url.params,
+            path=url,
             headers=self.headers,
             body=b''
         )
@@ -43,7 +47,7 @@ class WebSocketClient:
         expected_status = HTTPStatus.SWITCHING_PROTOCOLS
 
         if response.status is not expected_status:
-            return self._close(
+            self._handshake_complete.set_exception(
                 BrokenHandshakeError(
                     f'Server responsed with status code {response.status} '
                     f'({response.phrase}), need status code {expected_status} '
@@ -52,11 +56,12 @@ class WebSocketClient:
                     extra
                 )
             )
+            return self.protocol.close()
 
         connection = response.headers.getone(b'connection')
 
         if connection is None or connection.lower() != b'upgrade':
-            return self._close(
+            self._handshake_complete.set_exception(
                 BrokenHandshakeError(
                     f'Server responded with "connection: {connection}", '
                     f'need "connection: upgrade" to complete handshake. '
@@ -64,11 +69,12 @@ class WebSocketClient:
                     extra
                 )
             )
+            return self.protocol.close()
 
         upgrade = response.headers.getone(b'upgrade')
 
         if upgrade is None or upgrade.lower() != b'websocket':
-            return self._close(
+            self._handshake_complete.set_exception(
                 BrokenHandshakeError(
                     f'Server responded with "upgrade: {upgrade}", '
                     f'need "upgrade: websocket" to complete handshake. '
@@ -76,6 +82,7 @@ class WebSocketClient:
                     extra
                 )
             )
+            return self.protocol.close()
 
         self.protocol.state = WebSocketProtocolState.IDLE
         self.protocol.set_parser(WebSocketFrame.parser(self.protocol))
@@ -83,20 +90,6 @@ class WebSocketClient:
         self._handshake_complete.set_result(None)
 
         self.protocol._run_callback('ws_connected')
-
-    def _close(self, exc=None):
-        if exc is not None:
-            if self.protocol.state is WebSocketProtocolState.HANDSHAKING:
-                self._handshake_complete.set_exception(exc)
-            else:
-                close_code = WebSocketCloseCode.NORMAL_CLOSURE
-
-                if isinstance(exc, WsaioError):
-                    close_code = exc.get_extra('close_code', WebSocketCloseCode.NORMAL_CLOSURE)
-
-                self.loop.create_task(self.send_close(close_code, str(exc).encode()))
-
-        self.protocol.close(exc)
 
     def data_received(self, data):
         pass
@@ -107,8 +100,19 @@ class WebSocketClient:
     def connection_closing(self, exc):
         pass
 
-    def parser_invalid_data(self, exc):
-        self._close(exc)
+    async def parser_failed(self, exc):
+        if exc is not None:
+            if self.protocol.state is WebSocketProtocolState.HANDSHAKING:
+                self._handshake_complete.set_exception(exc)
+            else:
+                close_code = WebSocketCloseCode.NORMAL_CLOSURE
+
+                if isinstance(exc, WsaioError):
+                    close_code = exc.get_extra('close_code', WebSocketCloseCode.NORMAL_CLOSURE)
+
+                await self.send_close(close_code, str(exc).encode())
+
+        self.protocol.close(exc)
 
     def ws_connected(self):
         pass
@@ -157,7 +161,7 @@ class WebSocketClient:
 
         self.headers = kwargs.pop('headers', {})
 
-        self.url = urllib.parse.urlparse(url)
+        self.url = urlparse(url)
         self.ssl = kwargs.pop('ssl', self.url.scheme == 'wss')
         self.port = kwargs.pop('port', 443 if self.ssl else 80)
 

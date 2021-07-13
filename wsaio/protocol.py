@@ -1,7 +1,7 @@
 import asyncio
 import enum
 
-from .exceptions import ConnectionClosedError, ParserInvalidDataError
+from .exceptions import ConnectionClosedError
 
 
 class WebSocketProtocolState(enum.IntEnum):
@@ -12,7 +12,7 @@ class WebSocketProtocolState(enum.IntEnum):
     HANDSHAKING = 4
 
 
-class WebSocketProtocol(asyncio.BaseProtocol):
+class WebSocketProtocol(asyncio.Protocol):
     def __init__(self, client):
         self.client = client
         self.client.protocol = self
@@ -58,8 +58,8 @@ class WebSocketProtocol(asyncio.BaseProtocol):
                 break
             except StopIteration as err:
                 data = err.value
-            except ParserInvalidDataError as err:
-                self._run_callback('parser_invalid_data', err)
+            except Exception as err:
+                self._run_callback('parser_failed', err)
                 break
 
         self.state = state
